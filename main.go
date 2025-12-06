@@ -11,7 +11,13 @@ import (
 func main() {
 	logger := log.New(os.Stdout, "server: ", log.LstdFlags)
 
-	if err := db.Init("scheduler.db"); err != nil {
+	dbFile := "scheduler.db"
+
+	if env := os.Getenv("TODO_DBFILE"); env != "" {
+		dbFile = env
+	}
+
+	if err := db.Init(dbFile); err != nil {
 		logger.Fatalf("failed to init db: %v", err)
 	}
 

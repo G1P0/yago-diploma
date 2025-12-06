@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,10 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 			}
 		}
 		return date.Format("20060102"), nil
+	case "w":
+		return nextWeeklyDate(now, date, parts)
+	case "m":
+		return nextMonthlyDate(now, date, parts)
 	default:
 		return "", errors.New("unsupported repeat format")
 	}
@@ -48,6 +53,31 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		}
 	}
 	return date.Format("20060102"), nil
+}
+
+func nextDateHandler(w http.ResponseWriter, r *http.Request) {
+	nowStr := r.FormValue("now")
+	dateStr := r.FormValue("date")
+	repeatStr := r.FormValue("repeat")
+
+	var now time.Time
+	var err error
+	if nowStr == "" {
+		now = time.Now()
+	} else {
+		now, err = time.Parse("20060102", nowStr)
+		if err != nil {
+			http.Error(w, "invalid now format", http.StatusBadRequest)
+			return
+		}
+	}
+
+	next, err := NextDate(now, dateStr, repeatStr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Write([]byte(next))
 }
 
 func afterNow(date, now time.Time) bool {
@@ -73,4 +103,164 @@ func intervalDays(parts []string) (int, error) {
 
 	return interval, nil
 
+}
+
+func nextWeeklyDate(now, date time.Time, parts []string) (string, error) {
+	if len(parts) != 2 {
+		return "", errors.New("invalid w rule format")
+	}
+
+	rawDays := strings.Split(parts[1], ",")
+	if len(rawDays) == 0 {
+		return "", errors.New("invalid w day list")
+	}
+
+	var days []int
+	for _, d := range rawDays {
+		d = strings.TrimSpace(d)
+		if d == "" {
+			return "", errors.New("invalid w day")
+		}
+		val, err := strconv.Atoi(d)
+		if err != nil {
+			return "", errors.New("invalid w day")
+		}
+		if val < 1 || val > 7 {
+			return "", errors.New("w day out of range")
+		}
+		days = append(days, val)
+	}
+
+	for {
+		date = date.AddDate(0, 0, 1)
+		if !afterNow(date, now) {
+			continue
+		}
+
+		if containsInt(days, weekdayIndex(date)) {
+			break
+		}
+	}
+
+	return date.Format("20060102"), nil
+}
+
+func weekdayIndex(t time.Time) int {
+	wd := int(t.Weekday())
+	return ((wd + 6) % 7) + 1
+}
+
+func nextMonthlyDate(now, date time.Time, parts []string) (string, error) {
+	if len(parts) != 2 && len(parts) != 3 {
+		return "", errors.New("invalid m rule format")
+	}
+
+	rawDays := strings.Split(parts[1], ",")
+	if len(rawDays) == 0 {
+		return "", errors.New("invalid m day list")
+	}
+
+	var (
+		days       []int
+		useLast    bool
+		usePreLast bool
+	)
+
+	for _, d := range rawDays {
+		d = strings.TrimSpace(d)
+		if d == "" {
+			return "", errors.New("invalid m day")
+		}
+		val, err := strconv.Atoi(d)
+		if err != nil {
+			return "", errors.New("invalid m day")
+		}
+
+		switch {
+		case val >= 1 && val <= 31:
+			days = append(days, val)
+		case val == -1:
+			useLast = true
+		case val == -2:
+			usePreLast = true
+		default:
+			return "", errors.New("m day out of range")
+		}
+	}
+
+	var (
+		months        []int
+		restrictMonth bool
+	)
+
+	if len(parts) == 3 {
+		rawMonths := strings.Split(parts[2], ",")
+		if len(rawMonths) == 0 {
+			return "", errors.New("invalid m month list")
+		}
+		for _, m := range rawMonths {
+			m = strings.TrimSpace(m)
+			if m == "" {
+				return "", errors.New("invalid m month value")
+			}
+			val, err := strconv.Atoi(m)
+			if err != nil {
+				return "", errors.New("invalid m month value")
+			}
+			if val < 1 || val > 12 {
+				return "", errors.New("m month out of range")
+			}
+			months = append(months, val)
+		}
+		restrictMonth = true
+	}
+
+	for {
+		date = date.AddDate(0, 0, 1)
+		if !afterNow(date, now) {
+			continue
+		}
+
+		m := int(date.Month())
+		if restrictMonth && !containsInt(months, m) {
+			continue
+		}
+
+		day := date.Day()
+		match := false
+
+		if containsInt(days, day) {
+			match = true
+		}
+
+		if !match && (useLast || usePreLast) {
+			last := lastDayOfMonth(date.Year(), date.Month())
+			if useLast && day == last {
+				match = true
+			}
+			if usePreLast && day == last-1 {
+				match = true
+			}
+		}
+
+		if match {
+			break
+		}
+	}
+
+	return date.Format("20060102"), nil
+}
+
+func lastDayOfMonth(year int, month time.Month) int {
+	t := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC)
+	return t.Day()
+}
+
+func containsInt(list []int, v int) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
