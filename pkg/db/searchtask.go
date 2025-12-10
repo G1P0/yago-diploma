@@ -64,6 +64,10 @@ func scanTasks(rows *sql.Rows) ([]*Task, error) {
 		})
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	if tasks == nil {
 		tasks = []*Task{}
 	}

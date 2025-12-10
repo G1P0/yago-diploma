@@ -16,41 +16,41 @@ func taskDoneHandler(w http.ResponseWriter, r *http.Request) {
 
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		writeError(w, "id is required")
+		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
 	task, err := db.GetTask(id)
 	if err != nil {
-		writeError(w, err.Error())
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	if task.Repeat == "" {
 		if err := db.DeleteTask(id); err != nil {
-			writeError(w, err.Error())
+			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		writeJSON(w, map[string]any{})
+		writeJSON(w, http.StatusOK, map[string]any{})
 		return
 	}
 
 	now := time.Now()
 	next, err := NextDate(now, task.Date, task.Repeat)
 	if err != nil {
-		writeError(w, err.Error())
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	if next == "" {
-		writeError(w, errors.New("empty next date").Error())
+		writeError(w, http.StatusInternalServerError, errors.New("empty next date").Error())
 		return
 	}
 
 	if err := db.UpdateDate(next, id); err != nil {
-		writeError(w, err.Error())
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	writeJSON(w, map[string]any{})
+	writeJSON(w, http.StatusOK, map[string]any{})
 }

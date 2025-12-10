@@ -9,7 +9,7 @@ RUN go mod download
 
 COPY . .
 
-ENV CGO_ENABLED=1 GOOS=linux GOARCH=amd64
+ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 
 RUN go build -o task-manager .
 
@@ -26,6 +26,6 @@ ENV TODO_PORT=7540
 ENV TODO_DBFILE=/data/scheduler.db
 # ENV TODO_PASSWORD="12345"
 
-EXPOSE 7540
+EXPOSE ${TODO_PORT}
 
 CMD ["/app/task-manager"]

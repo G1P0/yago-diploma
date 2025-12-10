@@ -8,12 +8,14 @@ import (
 	"time"
 )
 
+const dateExample = "20060102"
+
 func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 	if len(repeat) == 0 {
 		return "", errors.New("missing repeat data")
 	}
 
-	date, err := time.Parse("20060102", dstart)
+	date, err := time.Parse(dateExample, dstart)
 	if err != nil {
 		return "", errors.New("cannot convert time to date")
 	}
@@ -37,7 +39,7 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 				break
 			}
 		}
-		return date.Format("20060102"), nil
+		return date.Format(dateExample), nil
 	case "w":
 		return nextWeeklyDate(now, date, parts)
 	case "m":
@@ -52,10 +54,15 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 			break
 		}
 	}
-	return date.Format("20060102"), nil
+	return date.Format(dateExample), nil
 }
 
 func nextDateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
 	nowStr := r.FormValue("now")
 	dateStr := r.FormValue("date")
 	repeatStr := r.FormValue("repeat")
@@ -65,24 +72,26 @@ func nextDateHandler(w http.ResponseWriter, r *http.Request) {
 	if nowStr == "" {
 		now = time.Now()
 	} else {
-		now, err = time.Parse("20060102", nowStr)
+		now, err = time.Parse(dateExample, nowStr)
 		if err != nil {
-			http.Error(w, "invalid now format", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "invalid now format")
 			return
 		}
 	}
 
 	next, err := NextDate(now, dateStr, repeatStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	w.Write([]byte(next))
+	if _, err := w.Write([]byte(next)); err != nil {
+		return
+	}
 }
 
 func afterNow(date, now time.Time) bool {
-	d := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
-	n := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	d := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, now.Location())
+	n := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	return d.After(n)
 }
@@ -142,7 +151,7 @@ func nextWeeklyDate(now, date time.Time, parts []string) (string, error) {
 		}
 	}
 
-	return date.Format("20060102"), nil
+	return date.Format(dateExample), nil
 }
 
 func weekdayIndex(t time.Time) int {
@@ -248,7 +257,7 @@ func nextMonthlyDate(now, date time.Time, parts []string) (string, error) {
 		}
 	}
 
-	return date.Format("20060102"), nil
+	return date.Format(dateExample), nil
 }
 
 func lastDayOfMonth(year int, month time.Month) int {

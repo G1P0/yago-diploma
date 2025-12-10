@@ -8,6 +8,8 @@ import (
 	"github.com/G1P0/yago-diploma/pkg/db"
 )
 
+var pass string
+
 type TasksResp struct {
 	Tasks []*db.Task `json:"tasks"`
 }
@@ -19,10 +21,9 @@ func Init(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tasks", authMiddleware(tasksHandler))
 	mux.HandleFunc("/api/task/done", authMiddleware(taskDoneHandler))
 }
-
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	pass = os.Getenv("TODO_PASSWORD")
 	return func(w http.ResponseWriter, r *http.Request) {
-		pass := os.Getenv("TODO_PASSWORD")
 		if pass == "" {
 			next(w, r)
 			return

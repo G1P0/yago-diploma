@@ -9,15 +9,15 @@ import (
 func getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		writeError(w, "id is required")
+		writeError(w, http.StatusBadRequest, "id is required")
 		return
 	}
 
 	task, err := db.GetTask(id)
 	if err != nil {
-		writeError(w, err.Error())
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	writeJSON(w, task)
+	writeJSON(w, http.StatusOK, task)
 }

@@ -21,6 +21,8 @@ func main() {
 		logger.Fatalf("failed to init db: %v", err)
 	}
 
+	defer db.Close()
+
 	srv := server.NewServer(logger)
 
 	if err := srv.Server.ListenAndServe(); err != nil {

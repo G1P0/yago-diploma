@@ -16,54 +16,55 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		writeError(w, "cannot read body: "+err.Error())
+		writeError(w, http.StatusBadRequest, "cannot read body: "+err.Error())
 		return
 	}
 
 	if err := json.Unmarshal(buf.Bytes(), &task); err != nil {
-		writeError(w, "invalid JSON: "+err.Error())
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 
 	if task.Title == "" {
-		writeError(w, "title is required")
+		writeError(w, http.StatusBadRequest, "title is required")
 		return
 	}
 
 	if err := checkDate(&task); err != nil {
-		writeError(w, err.Error())
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	id, err := db.AddTask(&task)
 	if err != nil {
-		writeError(w, "db error: "+err.Error())
+		writeError(w, http.StatusInternalServerError, "db error: "+err.Error())
 		return
 	}
 
-	writeJSON(w, map[string]any{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"id": id,
 	})
 }
 
-func writeJSON(w http.ResponseWriter, data any) {
+func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	json.NewEncoder(w).Encode(data)
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(data)
 }
 
-func writeError(w http.ResponseWriter, err string) {
-	writeJSON(w, map[string]string{"error": err})
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]string{"error": msg})
 }
 
 func checkDate(task *db.Task) error {
 	now := time.Now()
-	today := now.Format("20060102")
+	today := now.Format(dateExample)
 
 	if task.Date == "" {
 		task.Date = today
 	}
 
-	t, err := time.Parse("20060102", task.Date)
+	t, err := time.Parse(dateExample, task.Date)
 	if err != nil {
 		return errors.New("invalid date format")
 	}
